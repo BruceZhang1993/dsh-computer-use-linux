@@ -1,5 +1,15 @@
 # dsh-computer-use-linux
 
+[![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](package.json)
+[![DeepSeek Harness plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![MCP](https://img.shields.io/badge/MCP-stdio-6E56CF.svg)](https://modelcontextprotocol.io)
+
+**English** · [简体中文](README.zh-CN.md)
+
 **Linux desktop computer use for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)** —
 the [`computer-use-linux`](https://github.com/agent-sh/computer-use-linux) MCP
 server bridged into DSH as native tools, with its skill bundled.
@@ -93,6 +103,29 @@ node --test                      # unit + launcher tests
 In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
 platform, portals, accessibility, windowing and input backends, and a
 readiness summary.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
+`master`/`main`, on every pull request, and on demand:
+
+| Job | What it proves |
+| --- | --- |
+| `test` | `check-package` and `node --test` on Node 20 **and** Node 22 (ubuntu-latest), so the declared `engines` floor is real |
+| `mcp-handshake` | the pinned upstream binary downloads, sha256-verifies, and answers a real MCP `initialize` + `tools/list` through the launcher |
+
+Both jobs are desktop-free. `test/launcher.test.mjs` self-skips on a runner
+without a cached binary, which is why the second job exists; and
+`node scripts/doctor.mjs` is **not** a CI check — readiness is a property of the
+session you are sitting in, not of this repository.
+
+To reproduce CI locally:
+
+```sh
+node scripts/check-package.mjs
+node --test
+node scripts/install-binary.mjs && node scripts/selftest.mjs   # network
+```
 
 ## Tools
 

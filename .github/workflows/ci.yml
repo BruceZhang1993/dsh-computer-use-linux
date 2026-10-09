@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      # No `npm ci`/`pnpm install`: the package ships zero dependencies, and
+      # its only runtime is the Node that DSH itself provides.
+      - name: Static package checks
+        run: node scripts/check-package.mjs
+
+      - name: Unit and launcher tests
+        # test/launcher.test.mjs self-skips here: no desktop binary is cached on
+        # a fresh runner. The `mcp-handshake` job installs one and runs it.
+        run: node --test
+
+  mcp-handshake:
+    name: MCP handshake
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # Downloads the pinned upstream release and verifies it against the
+      # published .sha256 — the same path a first `tools/call` takes in a session.
+      - name: Download the pinned desktop binary
+        run: node scripts/install-binary.mjs
+
+      - name: MCP handshake and tools/list
+        run: node scripts/selftest.mjs
+
+      # `doctor` needs a real desktop session, so it is deliberately not called
+      # here. It stays a local check: node scripts/doctor.mjs
