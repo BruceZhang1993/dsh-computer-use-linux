@@ -1,0 +1,65 @@
+{
+  "name": "dsh-computer-use-linux",
+  "version": "0.1.0",
+  "description": "Linux desktop computer use for DeepSeek Harness: the computer-use-linux MCP server (AT-SPI accessibility trees, screenshots, compositor window targeting, Wayland/X11 input) bridged into DSH as native tools, with the bundled skill and an optional computer-use provider registration.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "linux"
+  ],
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./launcher": "./bin/computer-use-linux-mcp.mjs",
+    "./binary": "./lib/binary.mjs",
+    "./skills/*": "./skills/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "scripts",
+    "skills",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "install-binary": "node scripts/install-binary.mjs",
+    "selftest": "node scripts/selftest.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "check": "node scripts/check-package.mjs",
+    "test": "node --test"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "mcp",
+    "computer-use",
+    "linux",
+    "at-spi",
+    "accessibility",
+    "wayland",
+    "x11",
+    "desktop-automation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-sh/computer-use-linux.git",
+    "directory": "integrations/dsh"
+  },
+  "bugs": {
+    "url": "https://github.com/agent-sh/computer-use-linux/issues"
+  },
+  "homepage": "https://github.com/agent-sh/computer-use-linux#readme"
+}

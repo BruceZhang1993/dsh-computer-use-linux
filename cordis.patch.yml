@@ -1,0 +1,52 @@
+# dsh-computer-use-linux — DSH bundle patch layer.
+#
+# This bundle adds one `@deepseek-ai/dsh-mcp-client` row that speaks to the
+# `computer-use-linux` MCP server over stdio, so the model sees its tools as
+# `mcp__cul__<tool>` (doctor, list_windows, get_app_state, click, ...), plus the
+# JS half of this package (`lib/index.js`), which registers the bundled skill on
+# `ctx.skills` and claims the harness's computer-use provider slot when
+# `@deepseek-ai/dsh-computer-use` is mounted.
+#
+# The skill is NOT delivered through `skill-filesystem.bundledSkillDir`: that
+# config key is a single slot whose default is `$DSH_BUNDLED_SKILL_DIR`, so a
+# bundle patch that sets it would replace whatever else owns it. Runtime
+# registration through `ctx.skills.register()` is additive instead.
+#
+# Path resolution: `!!js` expressions are evaluated against the boot tree's
+# context, whose `baseUrl` is the PROFILE directory (where cordis.yml lives),
+# not this package's directory. Resolving the launcher through a
+# createRequire anchored at the profile's package.json therefore works in any
+# profile under any $DSH_HOME and survives the pnpm store layout, with no
+# hard-coded paths. `process.execPath` is the host executable: `node` for the
+# CLI/headless apps, or the Electron executable for DSH Desktop. The
+# child-only `ELECTRON_RUN_AS_NODE` flag makes Electron run the launcher as
+# Node; ordinary Node ignores it.
+#
+# The desktop session variables the server needs (`WAYLAND_DISPLAY`, `DISPLAY`,
+# `XAUTHORITY`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`,
+# `XDG_CURRENT_DESKTOP`, `DESKTOP_SESSION`, `YDOTOOL_SOCKET`, and the
+# `COMPUTER_USE_LINUX_*` knobs) survive the mcp-client's credential scrub, so
+# they are deliberately *not* restated here. Only names matching
+# /KEY|PASSWORD|SECRET|TOKEN/i and `DSH_*` are scrubbed.
+
+- insert:
+    - id: mcp-computer-use-linux
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js "process.platform !== 'linux'"
+      config:
+        serverName: cul
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js "process.getBuiltinModule('node:module').createRequire(new URL('package.json', baseUrl)).resolve('dsh-computer-use-linux/launcher')"
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        # Desktop observation can legitimately take longer than the 60 s default:
+        # a first-run binary download, an un-cached AT-SPI tree, or a portal
+        # consent dialog all happen inside a single tools/call.
+        toolCallTimeoutMs: 120000
+        failOnStartupError: false
+
+    - id: dsh-computer-use-linux
+      name: 'dsh-computer-use-linux'
+      disabled: !!js "process.platform !== 'linux'"
