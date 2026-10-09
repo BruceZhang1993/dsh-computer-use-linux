@@ -1,8 +1,7 @@
 # dsh-computer-use-linux
 
 [![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
+[![GitHub Packages](https://img.shields.io/badge/registry-GitHub%20Packages-2ea44f)](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
@@ -64,15 +63,38 @@ Two decisions define this integration:
 
 ## Install
 
-The plugin is published on npm as
-[`dsh-computer-use-linux`](https://www.npmjs.com/package/dsh-computer-use-linux).
+The plugin is published on **GitHub Packages** as
+[`@brucezhang1993/dsh-computer-use-linux`](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux).
 Install it as a DSH bundle — there is no manual patch or config edit.
 
-### CLI profiles — from npm (normal install)
+### Authenticate to GitHub Packages (once per machine)
+
+GitHub Packages requires a **personal access token (classic)** — not the OAuth
+token `gh auth login` stores, which carries no package scopes. Create one with
+`write:packages` (add `read:packages` to only install, `delete:packages` to
+unpublish) at
+[github.com/settings/tokens](https://github.com/settings/tokens), then:
 
 ```sh
-dsh plugin --profile web add dsh-computer-use-linux          # latest
-dsh plugin --profile web add dsh-computer-use-linux@0.1.0    # pin a version
+npm login --scope=@brucezhang1993 --auth-type=legacy \
+  --registry=https://npm.pkg.github.com
+# Username: BruceZhang1993
+# Password: <the classic PAT>   ← not your GitHub account password
+```
+
+`--auth-type=legacy` is required on npm 9+ so the CLI prompts instead of opening
+a browser. The token is written to your user-level `~/.npmrc`; this repository
+only ships the scope mapping in [`.npmrc`](.npmrc), so no credential is
+committed. Installs are authenticated too: GitHub Packages serves packages
+privately by default, so make the package public in its
+[package settings](https://github.com/users/BruceZhang1993/packages/npm/dsh-computer-use-linux/settings)
+if you want unauthenticated installs.
+
+### CLI profiles — from GitHub Packages (normal install)
+
+```sh
+dsh plugin --profile web add @brucezhang1993/dsh-computer-use-linux          # latest
+dsh plugin --profile web add @brucezhang1993/dsh-computer-use-linux@0.1.0    # pin a version
 ```
 
 `dsh plugin` delegates to pnpm in the profile directory, checks the package
@@ -82,11 +104,20 @@ that selection is what makes the profile layer load. Then restart the harness.
 The model's tool list gains `mcp__cul__doctor`, `mcp__cul__get_app_state`,
 `mcp__cul__list_windows`, `mcp__cul__click`, and the rest.
 
-### DSH Desktop — from npm
+pnpm reads `@brucezhang1993:registry` from your user-level `~/.npmrc` (written by
+`npm login`) or from a `.npmrc` in the profile directory, so put the mapping
+where the profile can see it:
 
-Open the plugin manager and install `dsh-computer-use-linux` from the registry
-(search by name). Desktop profiles are managed exclusively by the app, so
-`dsh plugin --profile desktop add …` is refused by design.
+```sh
+printf '@brucezhang1993:registry=https://npm.pkg.github.com\n' \
+  >> "${DSH_HOME:-$HOME/.dsh}/profiles/web/.npmrc"
+```
+
+### DSH Desktop — from GitHub Packages
+
+Open the plugin manager and install `@brucezhang1993/dsh-computer-use-linux`
+from the registry (search by name). Desktop profiles are managed exclusively by
+the app, so `dsh plugin --profile desktop add …` is refused by design.
 
 ### From a local checkout (development)
 
@@ -111,8 +142,8 @@ profile directory:
 
 ```sh
 cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"     # the profile you installed into
-node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs          # download + verify into the cache
-node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs --check  # show what would be used
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs          # download + verify into the cache
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs --check  # show what would be used
 ```
 
 In a source checkout the same scripts run from the repository root:
@@ -130,13 +161,14 @@ node scripts/doctor.mjs          # desktop readiness report, no DSH needed
 node --test                      # unit + launcher tests
 ```
 
-Installed from npm? `check-package` and the unit tests live in the source tree,
-but the runtime probes ship inside the package. From the profile directory:
+Installed from GitHub Packages? `check-package` and the unit tests live in the
+source tree, but the runtime probes ship inside the package. From the profile
+directory:
 
 ```sh
 cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"
-node node_modules/dsh-computer-use-linux/scripts/selftest.mjs
-node node_modules/dsh-computer-use-linux/scripts/doctor.mjs
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/selftest.mjs
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/doctor.mjs
 ```
 
 In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
@@ -146,14 +178,16 @@ readiness summary.
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
-`master`/`main`, on every pull request, and on demand:
+`master`/`main`, on every pull request, and on demand. A `v*` tag (or a manual
+dispatch) hands over to [`.github/workflows/release.yml`](.github/workflows/release.yml):
 
 | Job | What it proves |
 | --- | --- |
 | `test` | `check-package` and `node --test` on Node 20 **and** Node 22 (ubuntu-latest), so the declared `engines` floor is real |
 | `mcp-handshake` | the pinned upstream binary downloads, sha256-verifies, and answers a real MCP `initialize` + `tools/list` through the launcher |
+| `publish` (release.yml) | the tag and `package.json` agree, the version is not on the registry yet, and the tarball publishes to GitHub Packages |
 
-Both jobs are desktop-free. `test/launcher.test.mjs` self-skips on a runner
+All three jobs are desktop-free. `test/launcher.test.mjs` self-skips on a runner
 without a cached binary, which is why the second job exists; and
 `node scripts/doctor.mjs` is **not** a CI check — readiness is a property of the
 session you are sitting in, not of this repository.
@@ -165,6 +199,61 @@ node scripts/check-package.mjs
 node --test
 node scripts/install-binary.mjs && node scripts/selftest.mjs   # network
 ```
+
+## Publishing to GitHub Packages
+
+Everything the registry needs is declarative:
+
+| Piece | Where | What it does |
+| --- | --- | --- |
+| Registry | `publishConfig.registry` in `package.json` | `npm publish` targets `https://npm.pkg.github.com` even without an `.npmrc` |
+| Scope mapping | [`.npmrc`](.npmrc) | `@brucezhang1993:registry=https://npm.pkg.github.com` — a project `.npmrc` wins over the user one, so `npm publish` cannot land on npmjs.org by accident |
+| Package link | `repository.url` in `package.json` | matches this repo exactly, so the published package is linked to it and inherits its access permissions |
+| Name | `package.json` | GitHub Packages only accepts scoped names: `@brucezhang1993/dsh-computer-use-linux`, all lowercase |
+
+Publishing from CI is preferred — `GITHUB_TOKEN` needs no PAT and no rotation.
+**Tag it and push:**
+
+```sh
+npm version 0.2.0 --no-git-tag-version   # bump, or edit package.json
+git commit -am 'dsh-computer-use-linux 0.2.0'
+git tag v0.2.0 && git push origin master v0.2.0
+```
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) then re-runs the
+package checks and the tests, publishes with
+`NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`, and opens the GitHub release
+`v0.2.0` with generated notes. Because the package is linked to this repository,
+`GITHUB_TOKEN` is already authorised to publish it. The job is safe to re-run:
+
+- **the tag is the source of truth** — `scripts/release-version.mjs` refuses a
+  `v0.2.0` tag whose `package.json` still says `0.1.0`, so the registry gets
+  exactly what the tag points at;
+- **a published version is skipped, not re-published** — the job asks
+  GitHub Packages whether the version already exists and only publishes on a
+  definite "no"; it exits with an error when the answer is inconclusive (auth,
+  rate limit, network, unparseable document) rather than silently publishing
+  nothing;
+- **the effective registry is asserted** before publishing, because a
+  `@scope:registry` mapping in any `.npmrc` outranks `publishConfig.registry`;
+- **the release is only created for tag pushes** and skipped if it already
+  exists, so re-running the release event our own `gh release create` triggers
+  cannot create a second release or a second publish.
+
+`workflow_dispatch` publishes from a branch when a tag is not what you want
+(re-running a publish that failed after the version was already reserved, say);
+it takes an optional `version` input — with or without the `v`, and it must
+match `package.json` — and defaults to `package.json`. The same thing from a
+workstation:
+
+```sh
+npm login --scope=@brucezhang1993 --auth-type=legacy --registry=https://npm.pkg.github.com
+npm publish              # reads publishConfig + .npmrc
+npm view @brucezhang1993/dsh-computer-use-linux versions   # confirm what landed
+```
+
+A fresh package is **private** — change that in the package settings if you want
+unauthenticated `npm install`.
 
 ## Tools
 
@@ -280,7 +369,7 @@ lib/skill.mjs         bundled-skill frontmatter loader
 lib/index.js          plugin entry: skill registration + provider slot
 bin/…-mcp.mjs         the launcher the MCP client spawns
 cordis.patch.yml      the bundle patch (the whole integration surface)
-scripts/              install-binary · selftest · doctor · check-package
+scripts/              install-binary · selftest · doctor · check-package · release-version
 skills/               the bundled DSH skill
 test/                 node:test suites (no network, no desktop needed)
 ```

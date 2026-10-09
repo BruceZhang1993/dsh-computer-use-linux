@@ -13,10 +13,24 @@ Install into a profile (replace `web` with your profile; a DSH Desktop profile
 is managed by the app — use its plugin manager):
 
 ```sh
-dsh plugin --profile web add dsh-computer-use-linux
+dsh plugin --profile web add @brucezhang1993/dsh-computer-use-linux
 # or, working on the plugin itself, from a local checkout:
 dsh plugin --profile web add /absolute/path/to/dsh-computer-use-linux
 ```
+
+The package lives on GitHub Packages, so npm/pnpm need the scope mapping and a
+credential before that install can resolve:
+
+```sh
+# 1. map the scope (project-level; never overrides npmjs.org for other scopes)
+printf '@brucezhang1993:registry=https://npm.pkg.github.com\n' \
+  >> "${DSH_HOME:-$HOME/.dsh}/profiles/web/.npmrc"
+# 2. authenticate with a classic PAT (`write:packages`); npm 9+ needs --auth-type=legacy
+npm login --scope=@brucezhang1993 --auth-type=legacy --registry=https://npm.pkg.github.com
+```
+
+GitHub Packages sets a new package to **private**, so installs stay
+authenticated until you flip it to public in the package settings.
 
 Then restart the harness (or let the loader reload the profile) and confirm the
 tools appear:

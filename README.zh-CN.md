@@ -1,8 +1,7 @@
 # dsh-computer-use-linux
 
 [![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
+[![GitHub Packages](https://img.shields.io/badge/registry-GitHub%20Packages-2ea44f)](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
@@ -55,14 +54,28 @@ computer-use-linux mcp             ← 锁定版本的上游二进制（Rust，�
 
 ## 安装
 
-本插件已发布到 npm：
-[`dsh-computer-use-linux`](https://www.npmjs.com/package/dsh-computer-use-linux)。把它当作一个 DSH bundle 安装即可 —— 不需要手改 patch 或配置。
+本插件发布在 **GitHub Packages** 上：
+[`@brucezhang1993/dsh-computer-use-linux`](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux)。把它当作一个 DSH bundle 安装即可 —— 不需要手改 patch 或配置。
 
-### CLI profile —— 从 npm 安装（常规方式）
+### 先认证 GitHub Packages（每台机器一次）
+
+GitHub Packages 只认 **classic personal access token**，`gh auth login` 存的 OAuth token 没有包相关 scope，用不了。到
+[github.com/settings/tokens](https://github.com/settings/tokens) 建一个带 `write:packages` 的 classic PAT（只安装就加 `read:packages`，要撤包再加 `delete:packages`），然后：
 
 ```sh
-dsh plugin --profile web add dsh-computer-use-linux          # 最新版
-dsh plugin --profile web add dsh-computer-use-linux@0.1.0    # 锁定版本
+npm login --scope=@brucezhang1993 --auth-type=legacy \
+  --registry=https://npm.pkg.github.com
+# Username: BruceZhang1993
+# Password: <上面那个 classic PAT>   ← 不是你的 GitHub 登录密码
+```
+
+npm 9+ 必须加 `--auth-type=legacy`，否则会走浏览器登录。token 会被写进用户级 `~/.npmrc`；本仓库只在 [`.npmrc`](.npmrc) 里放 scope 映射，不会提交任何凭据。安装同样需要认证：GitHub Packages 新建的包默认是**私有**的，想免认证安装就到[包的设置页](https://github.com/users/BruceZhang1993/packages/npm/dsh-computer-use-linux/settings)改成 public。
+
+### CLI profile —— 从 GitHub Packages 安装（常规方式）
+
+```sh
+dsh plugin --profile web add @brucezhang1993/dsh-computer-use-linux          # 最新版
+dsh plugin --profile web add @brucezhang1993/dsh-computer-use-linux@0.1.0    # 锁定版本
 ```
 
 `dsh plugin` 会在 profile 目录里调用 pnpm；下载之前先按当前 DSH 版本做兼容性检查，
@@ -70,9 +83,17 @@ dsh plugin --profile web add dsh-computer-use-linux@0.1.0    # 锁定版本
 层生效。然后重启 harness。模型的工具列表里就会出现 `mcp__cul__doctor`、
 `mcp__cul__get_app_state`、`mcp__cul__list_windows`、`mcp__cul__click` 等工具。
 
-### DSH Desktop —— 从 npm 安装
+pnpm 会从用户级 `~/.npmrc`（`npm login` 写的那个）或 profile 目录里的 `.npmrc` 读取
+`@brucezhang1993:registry`，所以要把映射放到 profile 能看到的位置：
 
-打开插件管理器，从 registry 里按名字搜索并安装 `dsh-computer-use-linux`。Desktop 的
+```sh
+printf '@brucezhang1993:registry=https://npm.pkg.github.com\n' \
+  >> "${DSH_HOME:-$HOME/.dsh}/profiles/web/.npmrc"
+```
+
+### DSH Desktop —— 从 GitHub Packages 安装
+
+打开插件管理器，从 registry 里按名字搜索并安装 `@brucezhang1993/dsh-computer-use-linux`。Desktop 的
 profile 由应用独占管理，因此 `dsh plugin --profile desktop add …` 会被设计性地拒绝。
 
 ### 从本地检出安装（开发用）
@@ -92,8 +113,8 @@ launcher 会在首次使用时下载并做 sha256 校验。在安装阶段就做
 
 ```sh
 cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"     # 你安装到的那个 profile
-node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs          # 下载并校验到缓存目录
-node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs --check  # 只看会用到哪个
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs          # 下载并校验到缓存目录
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs --check  # 只看会用到哪个
 ```
 
 在源码检出里，同样的脚本从仓库根目录运行：`node scripts/install-binary.mjs`。
@@ -110,13 +131,13 @@ node scripts/doctor.mjs          # 桌面就绪报告，不需要 DSH
 node --test                      # 单元 + launcher 测试
 ```
 
-从 npm 安装的？`check-package` 与单元测试在源码树里，而运行时探针随包发布。
+从 GitHub Packages 安装的？`check-package` 与单元测试在源码树里，而运行时探针随包发布。
 在 profile 目录里：
 
 ```sh
 cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"
-node node_modules/dsh-computer-use-linux/scripts/selftest.mjs
-node node_modules/dsh-computer-use-linux/scripts/doctor.mjs
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/selftest.mjs
+node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/doctor.mjs
 ```
 
 在会话里，让 agent 先调用 `mcp__cul__doctor`：它会返回平台、portal、无障碍、窗口与输入后端，以及一份就绪摘要。
@@ -124,14 +145,16 @@ node node_modules/dsh-computer-use-linux/scripts/doctor.mjs
 ## 持续集成
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 会在每次推送到
-`master`/`main`、每个 pull request，以及手动触发时运行：
+`master`/`main`、每个 pull request，以及手动触发时运行。打 `v*` tag（或手动触发）则交给
+[`.github/workflows/release.yml`](.github/workflows/release.yml)：
 
 | Job | 它证明了什么 |
 | --- | --- |
 | `test` | 在 Node 20 **和** Node 22（ubuntu-latest）上跑 `check-package` 与 `node --test`，确认 `engines` 里声明的下限是真的 |
 | `mcp-handshake` | 锁定的上游二进制能下载、能通过 sha256 校验，并能经 launcher 完成一次真正的 MCP `initialize` + `tools/list` |
+| `publish`（release.yml） | tag 与 `package.json` 版本一致、该版本尚未发布，然后把 tarball 发到 GitHub Packages |
 
-两个 job 都不需要桌面。在没有缓存二进制的 runner 上，
+三个 job 都不需要桌面。在没有缓存二进制的 runner 上，
 `test/launcher.test.mjs` 会自我跳过——这正是第二个 job 存在的理由；而
 `node scripts/doctor.mjs` **不是** CI 检查项：就绪与否是「你正坐着的那个会话」的属性，不是这个仓库的属性。
 
@@ -142,6 +165,52 @@ node scripts/check-package.mjs
 node --test
 node scripts/install-binary.mjs && node scripts/selftest.mjs   # 需要网络
 ```
+
+## 发布到 GitHub Packages
+
+registry 需要的全部配置都是声明式的：
+
+| 部分 | 位置 | 作用 |
+| --- | --- | --- |
+| registry | `package.json` 的 `publishConfig.registry` | 即使没有 `.npmrc`，`npm publish` 也会发到 `https://npm.pkg.github.com` |
+| scope 映射 | [`.npmrc`](.npmrc) | `@brucezhang1993:registry=https://npm.pkg.github.com` —— 项目级 `.npmrc` 优先于用户级，因此不会误发到 npmjs.org |
+| 包与仓库的关联 | `package.json` 的 `repository.url` | 与本仓库 URL 完全一致，发布后包会自动关联本仓库并继承其访问权限 |
+| 包名 | `package.json` | GitHub Packages 只接受 scoped 小写名：`@brucezhang1993/dsh-computer-use-linux` |
+
+推荐走 CI 发布 —— `GITHUB_TOKEN` 不需要 PAT，也不用轮换。**打 tag 然后推：**
+
+```sh
+npm version 0.2.0 --no-git-tag-version   # 或直接改 package.json
+git commit -am 'dsh-computer-use-linux 0.2.0'
+git tag v0.2.0 && git push origin master v0.2.0
+```
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) 会重新跑包检查与测试，
+用 `NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` 执行 `npm publish`，并创建带自动生成
+notes 的 `v0.2.0` release。因为包已关联本仓库，`GITHUB_TOKEN` 本身就有发布权限。这个 job
+可以安全重跑：
+
+- **tag 是版本的唯一来源** —— `scripts/release-version.mjs` 会拒绝「`v0.2.0` tag 但
+  `package.json` 还写着 0.1.0」的情况，保证 registry 上的东西与 tag 指向的提交一致；
+- **版本已发布就跳过，而不是重复发布** —— job 会先查 GitHub Packages 里这个版本是否存在：
+  已存在就跳过发布（重跑因此是绿的），明确不存在（404）才执行 `npm publish`；权限、限流、
+  网络或响应无法解析等「无法判定」的情况一律直接失败并给出提示，不会静默地什么都不发；
+- **发布前断言真正生效的 registry** —— 任何 `.npmrc` 里的 `@scope:registry` 优先级都高于
+  `publishConfig.registry`，所以不能只看 `publishConfig`；
+- **只有 tag push 才创建 release**，且已存在就跳过；因此我们自己 `gh release create` 触发的
+  release 事件既不会再建 release，也不会重复发布。
+
+`workflow_dispatch` 用于「不想打 tag，直接从分支发」的场景（例如版本号已被占用、需要重跑
+一次失败的发布）；它有一个可选的 `version` 输入（带不带 `v` 都行，但必须与 `package.json`
+一致），默认取 `package.json`。在工作站上手动发布则是同一件事：
+
+```sh
+npm login --scope=@brucezhang1993 --auth-type=legacy --registry=https://npm.pkg.github.com
+npm publish              # 读取 publishConfig + .npmrc
+npm view @brucezhang1993/dsh-computer-use-linux versions   # 确认发出去的版本
+```
+
+新包默认是**私有**的 —— 想免认证安装就在包设置里改掉。
 
 ## 工具
 
@@ -243,7 +312,7 @@ lib/skill.mjs         内置 skill 的 frontmatter 加载器
 lib/index.js          插件入口：注册 skill + 占用 provider 槽位
 bin/…-mcp.mjs         MCP client 拉起的那只 launcher
 cordis.patch.yml      bundle patch（也就是全部集成面）
-scripts/              install-binary · selftest · doctor · check-package
+scripts/              install-binary · selftest · doctor · check-package · release-version
 skills/               内置的 DSH skill
 test/                 node:test 测试套件（不需要网络，也不需要桌面）
 ```

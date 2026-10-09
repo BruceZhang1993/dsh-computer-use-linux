@@ -38,7 +38,7 @@
         transport: stdio
         command: !!js process.execPath
         args:
-          - !!js "process.getBuiltinModule('node:module').createRequire(new URL('package.json', baseUrl)).resolve('dsh-computer-use-linux/launcher')"
+          - !!js "process.getBuiltinModule('node:module').createRequire(new URL('package.json', baseUrl)).resolve('@brucezhang1993/dsh-computer-use-linux/launcher')"
         env:
           ELECTRON_RUN_AS_NODE: '1'
         # Desktop observation can legitimately take longer than the 60 s default:

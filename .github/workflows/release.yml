@@ -1,0 +1,170 @@
+name: Release to GitHub Packages
+
+# Publishes this package to the npm registry on GitHub Packages
+# (https://npm.pkg.github.com) and opens the matching GitHub release. A tag is
+# the normal trigger: `git tag v0.2.0 && git push origin v0.2.0` publishes once
+# and creates the release with generated notes.
+#
+# GITHUB_TOKEN is enough for both halves: a package published from its own
+# repository is automatically linked to it and granted access, so this workflow
+# needs no personal access token and nothing to rotate. A personal access token
+# (classic) with `write:packages` is only needed for publishing from a
+# workstation.
+#
+# The tag wins over the manifest: the version in package.json must already match
+# the tag, so what lands on the registry is exactly what the tag points at.
+# Bump, commit, then tag.
+
+on:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish without a tag (defaults to package.json)'
+        required: false
+        type: string
+
+permissions:
+  contents: write # create the GitHub release for the tag
+  packages: write # publish to GitHub Packages
+
+concurrency:
+  # Per ref: a tag push (`refs/tags/v0.2.0`) and its release (`refs/tags/v0.2.0`
+  # again) share a group, while a manual dispatch runs on its branch ref.
+  # Re-runs never cancel a publish mid-flight.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # `registry-url` points npm at GitHub Packages and, with NODE_AUTH_TOKEN,
+      # writes the `//npm.pkg.github.com/:_authToken=…` line that authenticates
+      # `npm publish`, `npm view`, and `gh release` API reads alike.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@brucezhang1993'
+
+      # The tag is the source of truth. `github.event.release.tag_name` is
+      # correct for the release event too, and empty on workflow_dispatch, where
+      # the optional input (or package.json) decides.
+      - name: Resolve the version to publish
+        id: release
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-}"
+          if [ -n "${INPUT_VERSION}" ]; then
+            tag="v${INPUT_VERSION#v}"
+          elif [ -z "${tag}" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+          fi
+          node scripts/release-version.mjs "${tag}"
+
+      # Scoped lowercase name, publish registry, and the repository URL that
+      # GitHub Packages uses to link the package — all asserted, not assumed.
+      - name: Static package checks
+        run: node scripts/check-package.mjs
+
+      - name: Unit tests
+        run: node --test
+
+      # Decide whether this version is already on the registry, so re-runs and a
+      # release created out-of-band skip the publish instead of failing it.
+      # GitHub Packages has no per-version endpoint (it answers 405), so ask for
+      # the package document and look the version up in it. Only a definite 404
+      # means "not published"; an inconclusive answer (401, 403, 5xx, network)
+      # fails the step on purpose — treating it as published would leave a green
+      # run that silently published nothing.
+      - name: Check whether the version is already published
+        id: published
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          name="$(node -p "require('./package.json').name")"
+          version="${{ steps.release.outputs.version }}"
+          body="${RUNNER_TEMP}/github-package.json"
+          code="$(curl -sS --max-time 30 --retry 2 --retry-connrefused \
+            -o "${body}" -w '%{http_code}' \
+            -H "Authorization: Bearer ${NODE_AUTH_TOKEN}" \
+            "https://npm.pkg.github.com/${name}")" || code=000
+          case "${code}" in
+            200)
+              # 0 = this version is on the registry, 1 = it is not, anything else
+              # = the document could not be read. The status goes in its own
+              # variable so it cannot be confused with the HTTP code.
+              status=0
+              node -e '
+                let body;
+                try {
+                  body = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+                } catch {
+                  process.exit(2);
+                }
+                process.exit(Object.hasOwn(body.versions ?? {}, process.argv[2]) ? 0 : 1);
+              ' "${body}" "${version}" || status=$?
+              if [ "${status}" -eq 0 ]; then
+                echo "::notice::${name}@${version} is already published — skipping publish"
+                echo 'published=true' >> "${GITHUB_OUTPUT}"
+              elif [ "${status}" -eq 1 ]; then
+                echo "::notice::${name}@${version} is not on GitHub Packages — publishing"
+                echo 'published=false' >> "${GITHUB_OUTPUT}"
+              else
+                echo "::error::the GitHub Packages document for ${name} could not be parsed (exit ${status})"
+                exit 1
+              fi
+              ;;
+            404)
+              echo "::notice::${name}@${version} is not on GitHub Packages — publishing"
+              echo 'published=false' >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::cannot tell whether ${name}@${version} is already published (HTTP ${code}) — re-run once the registry is reachable"
+              exit 1
+              ;;
+          esac
+
+      - name: Publish
+        if: steps.published.outputs.published != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # `publishConfig.registry` is outranked by any `@scope:registry` in a
+          # config file, so assert where this publish will actually go. Compare
+          # without the trailing slash: a project `.npmrc` yields the value
+          # verbatim, while setup-node writes it with one.
+          mapped="$(npm config get @brucezhang1993:registry)"
+          if [ "${mapped%/}" != "https://npm.pkg.github.com" ]; then
+            echo "::error::@brucezhang1993 is mapped to ${mapped}, not GitHub Packages"
+            exit 1
+          fi
+          npm publish
+
+      # Tag pushes get the release created for them. A `release` event already
+      # has one (it is what triggered us), so this stays tag-only; the `gh
+      # release view` guard covers a re-run or a re-pushed tag.
+      - name: Create the GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists; leaving it alone"
+          else
+            gh release create "${TAG}" --title "${TAG}" --generate-notes
+          fi

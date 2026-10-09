@@ -20,7 +20,13 @@ test('the bundle patch is the only loader contract and it is well formed', () =>
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
   assert.ok(existsSync(join(root, 'cordis.patch.yml')));
 
+  // GitHub Packages only accepts scoped names, and the launcher is resolved
+  // through the full `@scope/name` specifier — the two must not drift apart.
+  assert.match(pkg.name, /^@[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/);
+  assert.equal(pkg.publishConfig?.registry, 'https://npm.pkg.github.com');
+
   const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
+  assert.ok(patch.includes(`.resolve('${pkg.name}/launcher')`), 'the patch must resolve the scoped launcher');
   // Exactly one insert list, so the patch cannot silently split the bundle.
   assert.equal(patch.match(/^- insert:/gm)?.length, 1);
   assert.match(patch, /id: mcp-computer-use-linux/);

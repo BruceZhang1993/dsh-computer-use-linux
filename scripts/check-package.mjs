@@ -33,6 +33,30 @@ check(
   `dsh.bundle.patch does not exist: ${patchPath}`,
 );
 
+// Publishing metadata. GitHub Packages only accepts scoped lowercase names, and
+// it links a package to a repository by matching `repository.url` exactly — a
+// mismatch there silently leaves the package unlinked, so CI cannot publish to
+// it with GITHUB_TOKEN. `publishConfig.registry` is the fallback target when no
+// `@scope:registry` mapping is configured; the release workflow asserts the
+// effective registry separately, since a scope mapping outranks it.
+const REPOSITORY = 'https://github.com/BruceZhang1993/dsh-computer-use-linux';
+check(
+  /^@[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(pkg.name),
+  `package name must be a scoped lowercase name, got ${pkg.name}`,
+);
+check(
+  pkg.publishConfig?.registry === 'https://npm.pkg.github.com',
+  `publishConfig.registry must be https://npm.pkg.github.com, got ${pkg.publishConfig?.registry}`,
+);
+check(
+  pkg.publishConfig?.access === 'public',
+  `publishConfig.access must be public, got ${pkg.publishConfig?.access}`,
+);
+check(
+  pkg.repository?.url === REPOSITORY,
+  `repository.url must be ${REPOSITORY} for GitHub Packages to link the package, got ${pkg.repository?.url}`,
+);
+
 const exportsMap = pkg.exports ?? {};
 check('./launcher' in exportsMap, 'exports must expose ./launcher (the patch resolves it)');
 
@@ -46,7 +70,12 @@ check(pkg.main === 'lib/index.js', `package.json main must be lib/index.js, got 
 
 const patch = readFileSync(join(root, patchPath), 'utf8');
 check(patch.includes("'@deepseek-ai/dsh-mcp-client'"), 'the patch must mount @deepseek-ai/dsh-mcp-client');
-check(patch.includes('dsh-computer-use-linux/launcher'), 'the patch must resolve the launcher');
+// GitHub Packages requires a scoped name, so the launcher must be resolved
+// through the full `@scope/name` specifier — not the bare package name.
+check(
+  typeof pkg.name === 'string' && patch.includes(`.resolve('${pkg.name}/launcher')`),
+  `the patch must resolve the launcher through this package's name (${pkg.name}/launcher)`,
+);
 check(
   !/^\s*-\s*id:\s*skill-filesystem\s*$/m.test(patch),
   'the patch must not override skill-filesystem: bundledSkillDir is a single shared slot',
