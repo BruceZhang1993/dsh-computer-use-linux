@@ -87,7 +87,7 @@ node scripts/check-package.mjs   # static: patch, exports, skill consistency
 node scripts/selftest.mjs        # MCP handshake + tools/list through the launcher
 node scripts/selftest.mjs --call doctor
 node scripts/doctor.mjs          # desktop readiness report, no DSH needed
-node --test test/                # unit + launcher tests
+node --test                      # unit + launcher tests
 ```
 
 In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
@@ -209,7 +209,7 @@ skills/               the bundled DSH skill
 test/                 node:test suites (no network, no desktop needed)
 ```
 
-`node --test test/` is used rather than a runner dependency: this package's
+`node --test` is used rather than a runner dependency: this package's
 runtime is DSH's own Node/Electron, so its tests target that runtime directly
 and the package ships with zero dependencies.
 
