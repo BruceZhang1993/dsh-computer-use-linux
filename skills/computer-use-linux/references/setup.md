@@ -13,9 +13,9 @@ Install into a profile (replace `web` with your profile; a DSH Desktop profile
 is managed by the app — use its plugin manager):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-computer-use-linux
-# or from a registry, once published:
 dsh plugin --profile web add dsh-computer-use-linux
+# or, working on the plugin itself, from a local checkout:
+dsh plugin --profile web add /absolute/path/to/dsh-computer-use-linux
 ```
 
 Then restart the harness (or let the loader reload the profile) and confirm the

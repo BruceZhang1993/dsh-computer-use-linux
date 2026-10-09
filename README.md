@@ -1,10 +1,11 @@
 # dsh-computer-use-linux
 
 [![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](package.json)
 [![DeepSeek Harness plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB.svg)](https://github.com/deepseek-ai/deepseek-harness)
 [![MCP](https://img.shields.io/badge/MCP-stdio-6E56CF.svg)](https://modelcontextprotocol.io)
 
@@ -63,34 +64,63 @@ Two decisions define this integration:
 
 ## Install
 
-### DSH Desktop
+The plugin is published on npm as
+[`dsh-computer-use-linux`](https://www.npmjs.com/package/dsh-computer-use-linux).
+Install it as a DSH bundle — there is no manual patch or config edit.
 
-Open the plugin manager and install the bundle from this directory, or from a
-registry once published. Desktop profiles are managed exclusively by the app,
-so `dsh plugin --profile desktop add …` is refused by design.
+### CLI profiles — from npm (normal install)
 
-### CLI profiles
+```sh
+dsh plugin --profile web add dsh-computer-use-linux          # latest
+dsh plugin --profile web add dsh-computer-use-linux@0.1.0    # pin a version
+```
+
+`dsh plugin` delegates to pnpm in the profile directory, checks the package
+against the running DSH version before downloading anything, and once the
+install succeeds selects the bundle in the profile's `dsh.profile.bundles` —
+that selection is what makes the profile layer load. Then restart the harness.
+The model's tool list gains `mcp__cul__doctor`, `mcp__cul__get_app_state`,
+`mcp__cul__list_windows`, `mcp__cul__click`, and the rest.
+
+### DSH Desktop — from npm
+
+Open the plugin manager and install `dsh-computer-use-linux` from the registry
+(search by name). Desktop profiles are managed exclusively by the app, so
+`dsh plugin --profile desktop add …` is refused by design.
+
+### From a local checkout (development)
+
+While working on this repository, install the working copy instead of the
+published tarball:
 
 ```sh
 dsh plugin --profile web add /absolute/path/to/dsh-computer-use-linux
 ```
 
-Then restart the harness. The model's tool list gains
-`mcp__cul__doctor`, `mcp__cul__get_app_state`, `mcp__cul__list_windows`,
-`mcp__cul__click`, and the rest.
+pnpm links the directory, so the bundle behaves exactly like the npm install
+and your edits apply on the next restart. No `npm pack`/`npm publish` step in
+between. See [Development](#development) for the repository layout and its
+self-checks.
 
 ### Pre-download the desktop binary (recommended)
 
 The launcher downloads and sha256-verifies the pinned release on first use.
 Doing it at install time keeps the first tool call fast and surfaces network
-problems early:
+problems early. The scripts ship inside the package, so run them from the
+profile directory:
 
 ```sh
-node scripts/install-binary.mjs          # download + verify into the cache
-node scripts/install-binary.mjs --check  # show what would be used
+cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"     # the profile you installed into
+node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs          # download + verify into the cache
+node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs --check  # show what would be used
 ```
 
+In a source checkout the same scripts run from the repository root:
+`node scripts/install-binary.mjs`.
+
 ## Verify
+
+From the repository (development):
 
 ```sh
 node scripts/check-package.mjs   # static: patch, exports, skill consistency
@@ -98,6 +128,15 @@ node scripts/selftest.mjs        # MCP handshake + tools/list through the launch
 node scripts/selftest.mjs --call doctor
 node scripts/doctor.mjs          # desktop readiness report, no DSH needed
 node --test                      # unit + launcher tests
+```
+
+Installed from npm? `check-package` and the unit tests live in the source tree,
+but the runtime probes ship inside the package. From the profile directory:
+
+```sh
+cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"
+node node_modules/dsh-computer-use-linux/scripts/selftest.mjs
+node node_modules/dsh-computer-use-linux/scripts/doctor.mjs
 ```
 
 In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
@@ -229,6 +268,10 @@ checklist (tools missing, calls failing, timeouts, screenshots arriving as
 text) and the full environment variable reference.
 
 ## Development
+
+Working on the plugin itself? Install the checkout with the local-path command
+under [Install](#from-a-local-checkout-development) and restart the harness
+after a change. The layout:
 
 ```
 lib/binary.mjs        binary resolution, verified download, server exec

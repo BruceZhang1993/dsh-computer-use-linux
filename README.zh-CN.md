@@ -1,10 +1,11 @@
 # dsh-computer-use-linux
 
 [![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-computer-use-linux.svg)](https://www.npmjs.com/package/dsh-computer-use-linux)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](package.json)
 [![DeepSeek Harness plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB.svg)](https://github.com/deepseek-ai/deepseek-harness)
 [![MCP](https://img.shields.io/badge/MCP-stdio-6E56CF.svg)](https://modelcontextprotocol.io)
 
@@ -54,31 +55,52 @@ computer-use-linux mcp             ← 锁定版本的上游二进制（Rust，�
 
 ## 安装
 
-### DSH Desktop
+本插件已发布到 npm：
+[`dsh-computer-use-linux`](https://www.npmjs.com/package/dsh-computer-use-linux)。把它当作一个 DSH bundle 安装即可 —— 不需要手改 patch 或配置。
 
-打开插件管理器，从本目录安装该 bundle；发布到 registry 后也可从 registry 安装。Desktop 的 profile 由应用独占管理，因此
-`dsh plugin --profile desktop add …` 会被设计性地拒绝。
+### CLI profile —— 从 npm 安装（常规方式）
 
-### CLI profile
+```sh
+dsh plugin --profile web add dsh-computer-use-linux          # 最新版
+dsh plugin --profile web add dsh-computer-use-linux@0.1.0    # 锁定版本
+```
+
+`dsh plugin` 会在 profile 目录里调用 pnpm；下载之前先按当前 DSH 版本做兼容性检查，
+安装成功后把该 bundle 选入 profile 的 `dsh.profile.bundles` —— 正是这一步让 profile
+层生效。然后重启 harness。模型的工具列表里就会出现 `mcp__cul__doctor`、
+`mcp__cul__get_app_state`、`mcp__cul__list_windows`、`mcp__cul__click` 等工具。
+
+### DSH Desktop —— 从 npm 安装
+
+打开插件管理器，从 registry 里按名字搜索并安装 `dsh-computer-use-linux`。Desktop 的
+profile 由应用独占管理，因此 `dsh plugin --profile desktop add …` 会被设计性地拒绝。
+
+### 从本地检出安装（开发用）
+
+如果要改这个仓库本身，就安装工作副本，而不是已发布的 tarball：
 
 ```sh
 dsh plugin --profile web add /absolute/path/to/dsh-computer-use-linux
 ```
 
-然后重启 harness。模型的工具列表里就会出现
-`mcp__cul__doctor`、`mcp__cul__get_app_state`、`mcp__cul__list_windows`、
-`mcp__cul__click` 等工具。
+pnpm 会链接该目录，因此 bundle 的行为与 npm 安装完全一致，改动在下次重启后生效，
+中间不需要任何 `npm pack`／`npm publish` 步骤。仓库结构与自检见[开发](#开发)。
 
 ### 预下载桌面二进制（推荐）
 
-launcher 会在首次使用时下载并做 sha256 校验。在安装阶段就做完，可以让第一次工具调用更快，也能提前暴露网络问题：
+launcher 会在首次使用时下载并做 sha256 校验。在安装阶段就做完，可以让第一次工具调用更快，也能提前暴露网络问题。脚本随包一起发布，因此在 profile 目录里执行：
 
 ```sh
-node scripts/install-binary.mjs          # 下载并校验到缓存目录
-node scripts/install-binary.mjs --check  # 只看会用到哪个
+cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"     # 你安装到的那个 profile
+node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs          # 下载并校验到缓存目录
+node node_modules/dsh-computer-use-linux/scripts/install-binary.mjs --check  # 只看会用到哪个
 ```
 
+在源码检出里，同样的脚本从仓库根目录运行：`node scripts/install-binary.mjs`。
+
 ## 验证
+
+在仓库里（开发时）：
 
 ```sh
 node scripts/check-package.mjs   # 静态检查：patch、exports、skill 一致性
@@ -86,6 +108,15 @@ node scripts/selftest.mjs        # 经 launcher 走一遍 MCP 握手 + tools/lis
 node scripts/selftest.mjs --call doctor
 node scripts/doctor.mjs          # 桌面就绪报告，不需要 DSH
 node --test                      # 单元 + launcher 测试
+```
+
+从 npm 安装的？`check-package` 与单元测试在源码树里，而运行时探针随包发布。
+在 profile 目录里：
+
+```sh
+cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"
+node node_modules/dsh-computer-use-linux/scripts/selftest.mjs
+node node_modules/dsh-computer-use-linux/scripts/doctor.mjs
 ```
 
 在会话里，让 agent 先调用 `mcp__cul__doctor`：它会返回平台、portal、无障碍、窗口与输入后端，以及一份就绪摘要。
@@ -202,6 +233,8 @@ mcp-client 的凭据清洗只丢匹配 `/KEY|PASSWORD|SECRET|TOKEN/i` 和 `DSH_*
 `skills/computer-use-linux/references/troubleshooting.md` 里的 DSH 侧清单（工具没出现、调用失败、超时、截图变成文本）以及完整的环境变量参考。
 
 ## 开发
+
+要改插件本身？按[安装](#从本地检出安装开发用)里的本地路径命令安装检出，改完重启 harness。目录结构：
 
 ```
 lib/binary.mjs        二进制解析、带校验的下载、server 执行
