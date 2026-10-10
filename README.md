@@ -1,7 +1,6 @@
 # dsh-computer-use-linux
 
 [![CI](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/BruceZhang1993/dsh-computer-use-linux/actions/workflows/ci.yml)
-[![GitHub Packages](https://img.shields.io/badge/registry-GitHub%20Packages-2ea44f)](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue.svg)](https://www.kernel.org)
@@ -63,32 +62,9 @@ Two decisions define this integration:
 
 ## Install
 
-The plugin is published on **GitHub Packages** as
-[`@brucezhang1993/dsh-computer-use-linux`](https://github.com/BruceZhang1993/dsh-computer-use-linux/pkgs/npm/dsh-computer-use-linux).
-Install it as a DSH bundle — there is no manual patch or config edit.
-
-### Authenticate to GitHub Packages (once per machine)
-
-GitHub Packages requires a **personal access token (classic)** — not the OAuth
-token `gh auth login` stores, which carries no package scopes. Create one with
-`write:packages` (add `read:packages` to only install, `delete:packages` to
-unpublish) at
-[github.com/settings/tokens](https://github.com/settings/tokens), then:
-
-```sh
-npm login --scope=@brucezhang1993 --auth-type=legacy \
-  --registry=https://npm.pkg.github.com
-# Username: BruceZhang1993
-# Password: <the classic PAT>   ← not your GitHub account password
-```
-
-`--auth-type=legacy` is required on npm 9+ so the CLI prompts instead of opening
-a browser. The token is written to your user-level `~/.npmrc`; this repository
-only ships the scope mapping in [`.npmrc`](.npmrc), so no credential is
-committed. Installs are authenticated too: GitHub Packages serves packages
-privately by default, so make the package public in its
-[package settings](https://github.com/users/BruceZhang1993/packages/npm/dsh-computer-use-linux/settings)
-if you want unauthenticated installs.
+Install the plugin as a DSH bundle — there is no manual patch or config edit.
+The full guide, including GitHub Packages authentication and the pre-download
+step, is [docs/installation.md](docs/installation.md).
 
 ### CLI profiles — from GitHub Packages (normal install)
 
@@ -104,14 +80,22 @@ that selection is what makes the profile layer load. Then restart the harness.
 The model's tool list gains `mcp__cul__doctor`, `mcp__cul__get_app_state`,
 `mcp__cul__list_windows`, `mcp__cul__click`, and the rest.
 
-pnpm reads `@brucezhang1993:registry` from your user-level `~/.npmrc` (written by
-`npm login`) or from a `.npmrc` in the profile directory, so put the mapping
-where the profile can see it:
+The package is served by GitHub Packages and installs are authenticated there.
+Make the scope mapping visible to the profile, and log in once per machine:
 
 ```sh
 printf '@brucezhang1993:registry=https://npm.pkg.github.com\n' \
   >> "${DSH_HOME:-$HOME/.dsh}/profiles/web/.npmrc"
+npm login --scope=@brucezhang1993 --auth-type=legacy \
+  --registry=https://npm.pkg.github.com
 ```
+
+`--auth-type=legacy` is required on npm 9+ so the CLI prompts instead of opening
+a browser, and the password is a **classic personal access token** with
+`read:packages` — not the token `gh auth login` stores. See
+[docs/installation.md](docs/installation.md#authenticate-to-github-packages-once-per-machine)
+for the token scopes, why the token goes to `~/.npmrc`, and how to make the
+package public if you want unauthenticated installs.
 
 ### DSH Desktop — from GitHub Packages
 
@@ -133,127 +117,25 @@ and your edits apply on the next restart. No `npm pack`/`npm publish` step in
 between. See [Development](#development) for the repository layout and its
 self-checks.
 
-### Pre-download the desktop binary (recommended)
-
-The launcher downloads and sha256-verifies the pinned release on first use.
-Doing it at install time keeps the first tool call fast and surfaces network
-problems early. The scripts ship inside the package, so run them from the
-profile directory:
-
-```sh
-cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"     # the profile you installed into
-node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs          # download + verify into the cache
-node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/install-binary.mjs --check  # show what would be used
-```
-
-In a source checkout the same scripts run from the repository root:
-`node scripts/install-binary.mjs`.
-
 ## Verify
 
-From the repository (development):
+In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
+platform, portals, accessibility, windowing and input backends, and a readiness
+summary.
+
+From a source checkout:
 
 ```sh
 node scripts/check-package.mjs   # static: patch, exports, skill consistency
-node scripts/selftest.mjs        # MCP handshake + tools/list through the launcher
-node scripts/selftest.mjs --call doctor
-node scripts/doctor.mjs          # desktop readiness report, no DSH needed
 node --test                      # unit + launcher tests
+node scripts/doctor.mjs          # desktop readiness report, no DSH needed
+node scripts/selftest.mjs        # MCP handshake + tools/list through the launcher
 ```
 
-Installed from GitHub Packages? `check-package` and the unit tests live in the
-source tree, but the runtime probes ship inside the package. From the profile
-directory:
-
-```sh
-cd "${DSH_HOME:-$HOME/.dsh}/profiles/web"
-node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/selftest.mjs
-node node_modules/@brucezhang1993/dsh-computer-use-linux/scripts/doctor.mjs
-```
-
-In a session, ask the agent to call `mcp__cul__doctor` first: it returns the
-platform, portals, accessibility, windowing and input backends, and a
-readiness summary.
-
-## Continuous integration
-
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
-`master`/`main`, on every pull request, and on demand. A `v*` tag (or a manual
-dispatch) hands over to [`.github/workflows/release.yml`](.github/workflows/release.yml):
-
-| Job | What it proves |
-| --- | --- |
-| `test` | `check-package` and `node --test` on Node 20 **and** Node 22 (ubuntu-latest), so the declared `engines` floor is real |
-| `mcp-handshake` | the pinned upstream binary downloads, sha256-verifies, and answers a real MCP `initialize` + `tools/list` through the launcher |
-| `publish` (release.yml) | the tag and `package.json` agree, the version is not on the registry yet, and the tarball publishes to GitHub Packages |
-
-All three jobs are desktop-free. `test/launcher.test.mjs` self-skips on a runner
-without a cached binary, which is why the second job exists; and
-`node scripts/doctor.mjs` is **not** a CI check — readiness is a property of the
-session you are sitting in, not of this repository.
-
-To reproduce CI locally:
-
-```sh
-node scripts/check-package.mjs
-node --test
-node scripts/install-binary.mjs && node scripts/selftest.mjs   # network
-```
-
-## Publishing to GitHub Packages
-
-Everything the registry needs is declarative:
-
-| Piece | Where | What it does |
-| --- | --- | --- |
-| Registry | `publishConfig.registry` in `package.json` | `npm publish` targets `https://npm.pkg.github.com` even without an `.npmrc` |
-| Scope mapping | [`.npmrc`](.npmrc) | `@brucezhang1993:registry=https://npm.pkg.github.com` — a project `.npmrc` wins over the user one, so `npm publish` cannot land on npmjs.org by accident |
-| Package link | `repository.url` in `package.json` | matches this repo exactly, so the published package is linked to it and inherits its access permissions |
-| Name | `package.json` | GitHub Packages only accepts scoped names: `@brucezhang1993/dsh-computer-use-linux`, all lowercase |
-
-Publishing from CI is preferred — `GITHUB_TOKEN` needs no PAT and no rotation.
-**Tag it and push:**
-
-```sh
-npm version 0.2.0 --no-git-tag-version   # bump, or edit package.json
-git commit -am 'dsh-computer-use-linux 0.2.0'
-git tag v0.2.0 && git push origin master v0.2.0
-```
-
-[`.github/workflows/release.yml`](.github/workflows/release.yml) then re-runs the
-package checks and the tests, publishes with
-`NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`, and opens the GitHub release
-`v0.2.0` with generated notes. Because the package is linked to this repository,
-`GITHUB_TOKEN` is already authorised to publish it. The job is safe to re-run:
-
-- **the tag is the source of truth** — `scripts/release-version.mjs` refuses a
-  `v0.2.0` tag whose `package.json` still says `0.1.0`, so the registry gets
-  exactly what the tag points at;
-- **a published version is skipped, not re-published** — the job asks
-  GitHub Packages whether the version already exists and only publishes on a
-  definite "no"; it exits with an error when the answer is inconclusive (auth,
-  rate limit, network, unparseable document) rather than silently publishing
-  nothing;
-- **the effective registry is asserted** before publishing, because a
-  `@scope:registry` mapping in any `.npmrc` outranks `publishConfig.registry`;
-- **the release is only created for tag pushes** and skipped if it already
-  exists, so re-running the release event our own `gh release create` triggers
-  cannot create a second release or a second publish.
-
-`workflow_dispatch` publishes from a branch when a tag is not what you want
-(re-running a publish that failed after the version was already reserved, say);
-it takes an optional `version` input — with or without the `v`, and it must
-match `package.json` — and defaults to `package.json`. The same thing from a
-workstation:
-
-```sh
-npm login --scope=@brucezhang1993 --auth-type=legacy --registry=https://npm.pkg.github.com
-npm publish              # reads publishConfig + .npmrc
-npm view @brucezhang1993/dsh-computer-use-linux versions   # confirm what landed
-```
-
-A fresh package is **private** — change that in the package settings if you want
-unauthenticated `npm install`.
+`check-package` and the unit tests live in the source tree; the runtime probes
+ship inside the package, so an installed copy can still run `selftest.mjs` and
+`doctor.mjs`. The exact commands, including the installed-copy paths, are in
+[docs/installation.md](docs/installation.md#verify-the-install).
 
 ## Tools
 
@@ -290,6 +172,8 @@ Downloads are staged and renamed, so concurrent first starts and killed
 downloads cannot leave a half-written binary. Version and mirror are
 overridable: `COMPUTER_USE_LINUX_VERSION`, `COMPUTER_USE_LINUX_DOWNLOAD_BASE`,
 `COMPUTER_USE_LINUX_SKIP_DOWNLOAD`.
+[docs/installation.md](docs/installation.md#binary-resolution) covers each hit
+and when to prefer it.
 
 ## What the bundle adds
 
@@ -377,6 +261,9 @@ test/                 node:test suites (no network, no desktop needed)
 `node --test` is used rather than a runner dependency: this package's
 runtime is DSH's own Node/Electron, so its tests target that runtime directly
 and the package ships with zero dependencies.
+
+Maintainers: publishing, CI, and release mechanics are in
+[docs/releasing.md](docs/releasing.md).
 
 ## License
 
